@@ -1,0 +1,104 @@
+---
+model:
+  class_path: model.ACTModule
+  init_args:
+    action_dim: 14
+    enc_layers: 4
+    dec_layers: 7
+    nheads: 8
+    dropout: 0.1
+    chunk_size: 100
+    dim_feedforward: 2048
+    hidden_dim: 256
+    latent_dim: 32
+    kl_weight: 10
+
+optimizer:
+  class_path: torch.optim.AdamW
+  init_args:
+    lr: 0.0001
+
+trainer:
+  accelerator: gpu
+  devices: [1]
+  max_epochs: -1
+  gradient_clip_val: 10
+  # deterministic: true
+  precision: 16-mixed
+  log_every_n_steps: 1
+  callbacks:
+    -
+      class_path: RichProgressBar
+    -
+      class_path: EarlyStopping
+      init_args:
+        monitor: val_loss
+        patience: 10
+        mode: min
+        verbose: True
+    - 
+      class_path: ModelCheckpoint
+      init_args:
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        save_last: True
+
+
+data:
+  class_path: dataset.EpisodeDataModule
+  init_args:
+    data_dir: data
+    batch_size: 8
+    num_workers: 1
+    observation_transforms:
+      class_path: torchvision.transforms.Compose
+      init_args:
+        transforms:
+          - class_path: einops.layers.torch.Rearrange
+            init_args:
+              pattern: h w c -> c h w
+          - class_path: torchvision.transforms.Normalize
+            init_args:
+              mean: [0, 0, 0]
+              std: [255, 255, 255]
+          - class_path: torchvision.transforms.Normalize
+            init_args:
+              mean: [0.485, 0.456, 0.406]
+              std: [0.229, 0.224, 0.225]
+    action_transforms:
+      class_path: torchvision.transforms.Compose
+      init_args:
+        transforms:
+          - class_path: dataset.NormalizeAction
+            init_args:
+              mean:
+                - 0.0031166423577815294
+                - -0.7917109131813049
+                - 1.0312659740447998
+                - 0.03504155948758125
+                - -0.21998770534992218
+                - 0.7908826470375061
+                - 0.5
+                - -0.04865260422229767
+                - -0.6707339882850647
+                - 0.5856502652168274
+                - 0.03863722085952759
+                - 0.38248196244239807
+                - -0.07902640104293823
+                - 0.5
+              std:
+                - 0.006756746210157871
+                - 0.7924757599830627
+                - 0.3087932765483856
+                - 0.052176523953676224
+                - 0.6107658743858337
+                - 0.7922634482383728
+                - 0.5
+                - 0.4150969982147217
+                - 0.919772207736969
+                - 0.6227527260780334
+                - 0.6494200825691223
+                - 0.6824820041656494
+                - 0.9839617609977722
+                - 0.5

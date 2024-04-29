@@ -1,0 +1,64 @@
+[project]
+name = "act"
+version = "0.1.0"
+description = "Add your description here"
+dependencies = [
+    "torch>=2.2.2",
+    "numpy>=1.26.4",
+    "torchvision>=0.17.2",
+    "einops>=0.7.0",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = [
+    "ruff>=0.4.1",
+    "mypy>=1.9.0",
+    "lightning>=2.2.3",
+    "h5py>=3.11.0",
+    "rich>=13.7.1",
+    "torchshow>=0.5.1",
+    "jsonargparse[signatures]>=4.27.7",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/act"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+ignore = [
+    "CPY001",  # missing-copyright-notice
+    "ISC001",  # single-line-implicit-string-concatenation
+    "COM812",  # missing-comma-in-multiline
+]
+fixable = ["ALL"]
+unfixable = []
+exclude = [".git", ".ruff_cache", ".venv",]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+preview = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["act"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
