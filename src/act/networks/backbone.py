@@ -37,4 +37,4 @@ class Resnet18Encoder(nn.Module):
         torch.Tensor
             エンコードされた特徴量. shape = [N, 512, H/32, W/32].
         """
-        return self.body(tensor)["0"]
+        return self.body(tensor)["0"]  # type: ignore[no-any-return]

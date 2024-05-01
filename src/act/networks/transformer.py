@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Facebook, Inc. and its affiliates. All Rights Reserved
-# ruff: noqa: D102, PLR0913, PLC2701, FBT001, FBT002, PGH003
+# ruff: noqa: PLR0913, PLC2701, FBT001, FBT002
 """
 DETRで用いられているTransformer.
 
@@ -14,10 +14,12 @@ References
 
 """
 
+from copy import deepcopy
+
 import torch
 from einops import rearrange, repeat
 from torch import Tensor, nn
-from torch.nn.modules.transformer import _get_activation_fn, _get_clones
+from torch.nn.modules.transformer import _get_activation_fn
 
 
 class Transformer(nn.Module):
@@ -245,7 +247,7 @@ class TransformerEncoder(nn.Module):
         num_layers: int,
     ) -> None:
         super().__init__()
-        self.layers = _get_clones(encoder_layer, num_layers)  # type: ignore
+        self.layers = get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
 
     def forward(
@@ -394,7 +396,7 @@ class TransformerDecoder(nn.Module):
         norm: nn.Module,
     ) -> None:
         super().__init__()
-        self.layers = _get_clones(decoder_layer, num_layers)  # type: ignore
+        self.layers = get_clones(decoder_layer, num_layers)
         self.num_layers = num_layers
         self.norm = norm
 
@@ -406,6 +408,21 @@ class TransformerDecoder(nn.Module):
         pos: Tensor | None = None,
         query_pos: Tensor | None = None,
     ) -> Tensor:
+        """
+        順伝播.
+
+        Parameters
+        ----------
+        tgt: Tensor
+            デコーダへの入力テンソル. ACTでは0行列.
+        memory: Tensor
+            エンコーダの出力.
+        pos: Tensor
+            位置埋め込み.
+        query_pos: Tensor
+            クエリ埋め込み.
+
+        """
         output = tgt
 
         intermediate = []
@@ -429,3 +446,8 @@ class TransformerDecoder(nn.Module):
 def with_pos_embed(tensor: Tensor, pos: Tensor | None) -> Tensor:
     """Positional encodingをtensorに追加する."""
     return tensor if pos is None else tensor + pos
+
+
+def get_clones(module: nn.Module, n: int) -> nn.ModuleList:
+    """`module`を`n`個スタックした`ModuleList`を返す."""
+    return nn.ModuleList([deepcopy(module) for _ in range(n)])

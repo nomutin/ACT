@@ -25,6 +25,7 @@ dev-dependencies = [
     "rich>=13.7.1",
     "torchshow>=0.5.1",
     "jsonargparse[signatures]>=4.27.7",
+    "wandb>=0.16.6",
 ]
 
 [tool.hatch.metadata]
