@@ -5,8 +5,6 @@ References
 ----------
 - https://lightning.ai/docs/pytorch/stable/data/datamodule.html
 """
-# ruff: noqa: PLR0913, ARG002
-
 from pathlib import Path
 
 import h5py
@@ -14,7 +12,7 @@ import numpy as np
 import torch
 from custom_types import DataGroup
 from lightning import LightningDataModule
-from torch import Tensor
+from torch import Tensor, from_numpy
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import Compose
 
@@ -36,6 +34,9 @@ class EpisodeDataset(Dataset[DataGroup]):
         行動データに適用する変換. 本家で使用しているのは正規化だけ.
     observation_transforms : Transform
         観測データに適用する変換. 本家で使用しているのは正規化だけ.
+    sample_full_episode : bool, optional
+        データセットからランダムなタイムステップからデータを取得するか.
+        Falseの場合は0から取得し、paddingなどは行われない.
 
     """
 
@@ -44,10 +45,12 @@ class EpisodeDataset(Dataset[DataGroup]):
         data_path_list: list[Path],
         action_transforms: Compose,
         observation_transforms: Compose,
+        sample_full_episode: bool = False,
     ) -> None:
         self.data_path_list = data_path_list
         self.action_transforms = action_transforms
         self.observation_transforms = observation_transforms
+        self.sample_full_episode = sample_full_episode
         self.randgen = np.random.default_rng()
 
     def __len__(self) -> int:
@@ -69,7 +72,7 @@ class EpisodeDataset(Dataset[DataGroup]):
         Returns
         -------
         tuple[Tensor, Tensor, Tensor, Tensor]
-            Tensor: slave_proprio
+            slave_proprio: Tensor
                 現在時刻のSlaveの関節角度. shape: [action_dim]
                 行動生成のqueryとして利用される. 時系列では無いので注意.
                 無いなら master_actions[0] でも良さそう.
@@ -84,7 +87,38 @@ class EpisodeDataset(Dataset[DataGroup]):
                 パディング情報. shape: [episode_len]
                 Transformerのマスク(よくわからない)と損失の計算に使用される.
 
+        Returns(sample_full_episode=True)
+        ---------------------------------
+        tuple[Tensor, Tensor, Tensor, Tensor]
+            slave_actions: Tensor
+                shape: [episode_len, action_dim]
+            observations: Tensor
+                shape: [episode_len, 3, w, h]
+            master_actions: Tensor
+                shape: [episode_len, action_dim]
+            is_pad: Tensor(bool)
+
         """
+        if self.sample_full_episode:
+            with h5py.File(self.data_path_list[idx], "r") as root:
+                master_actions_h5 = get_h5(root, "/action")
+                slave_actions_h5 = get_h5(root, "/observations/qpos")
+                observations_h5 = get_h5(root, "/observations/images/top")
+                episode_len = master_actions_h5.shape[0]
+
+                master_actions = from_numpy(master_actions_h5[...]).float()
+                slave_actions = from_numpy(slave_actions_h5[...]).float()
+                observations = from_numpy(observations_h5[...]).float()
+                episode_len = master_actions_h5.shape[0]
+                is_pad = torch.zeros(episode_len, dtype=torch.bool)
+
+                return (
+                    self.action_transforms(slave_actions),
+                    self.observation_transforms(observations),
+                    self.action_transforms(master_actions),
+                    is_pad,
+                )
+
         with h5py.File(self.data_path_list[idx], "r") as root:
             master_actions_h5 = get_h5(root, "/action")
             original_action_shape = master_actions_h5.shape
@@ -92,15 +126,16 @@ class EpisodeDataset(Dataset[DataGroup]):
             episode_len = original_action_shape[0]
             start_ts = self.randgen.choice(episode_len)
             slave_proprio_h5 = get_h5(root, "/observations/qpos")[start_ts]
+            master_actions_h5 = get_h5(root, "/action")
             observation_h5 = get_h5(root, "/observations/images/top")[start_ts]
 
             action_len = episode_len - start_ts
             padded_action = np.zeros(original_action_shape, dtype=np.float32)
             padded_action[:action_len] = master_actions_h5[start_ts:]
 
-        master_actions = torch.from_numpy(padded_action).float()
-        slave_proprio = torch.from_numpy(slave_proprio_h5).float()
-        observation = torch.from_numpy(observation_h5).float()
+        master_actions = from_numpy(padded_action).float()
+        slave_proprio = from_numpy(slave_proprio_h5).float()
+        observation = from_numpy(observation_h5).float()
         is_pad = torch.zeros(episode_len, dtype=torch.bool)
         is_pad[action_len:] = True
 
@@ -168,6 +203,14 @@ class EpisodeDataModule(LightningDataModule):
             observation_transforms=self.observation_transforms,
         )
 
+        if stage == "test":
+            self.test_dataset = EpisodeDataset(
+                data_path_list=train_path_list + val_path_list,
+                action_transforms=self.action_transforms,
+                observation_transforms=self.observation_transforms,
+                sample_full_episode=True,
+            )
+
     def train_dataloader(self) -> DataLoader[DataGroup]:
         """学習用の`DataLoader`."""
         return DataLoader(
@@ -180,17 +223,21 @@ class EpisodeDataModule(LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader[DataGroup]:
-        """
-        検証用の`DataLoader`.
-
-        Note
-        ----
-        * `batch_size` は `len(val_dataset)`で良いが,
-          メモリに載りきりらない場合があるので抑えている.
-        """
+        """検証用の`DataLoader`."""
         return DataLoader(
             dataset=self.val_dataset,
             batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            shuffle=False,
+            pin_memory=True,
+            prefetch_factor=1,
+        )
+
+    def test_dataloader(self) -> DataLoader[DataGroup]:
+        """テスト用の`DataLoader`."""
+        return DataLoader(
+            dataset=self.test_dataset,
+            batch_size=1,
             num_workers=self.num_workers,
             shuffle=False,
             pin_memory=True,

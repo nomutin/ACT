@@ -24,13 +24,17 @@
 
 4. 学習
 
+    [lightningCLI](https://lightning.ai/docs/pytorch/stable/api/lightning.pytorch.cli.LightningCLI.html) を使って学習を行う
+
     ```bash
     cd example
-    python scripts/train.py --config config/sim_insertion_scripted.yaml
+    python run.py fit --config config/sim_insertion_scripted.yaml
     ```
 
 5. テスト
 
+    wandb にログが記録される
+
     ```bash
-    未実装
+    python run.py test --config config/test_sim_insertion_scripted.yaml
     ```

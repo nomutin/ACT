@@ -55,6 +55,10 @@ unfixable = []
 exclude = [".git", ".ruff_cache", ".venv",]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
+[tool.ruff.lint.per-file-ignores]
+"example/eval.py" = ["PLR0913", "PLR0917", "PLR6301", "ARG002"]
+"example/dataset.py" = ["FBT001", "FBT002", "PLR0913"]
+
 [tool.ruff.format]
 preview = true
 

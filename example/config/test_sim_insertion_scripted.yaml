@@ -12,6 +12,8 @@ model:
     hidden_dim: 256
     latent_dim: 32
     kl_weight: 10
+    wandb_reference: nomutin/sim-insertion-scripted/model-kc1f9lqw:v0
+
 
 optimizer:
   class_path: torch.optim.AdamW
@@ -36,19 +38,20 @@ trainer:
         patience: 100
         mode: min
         verbose: True
-    - 
+    -
       class_path: ModelCheckpoint
       init_args:
         monitor: val_loss
         mode: min
         save_top_k: 1
         save_last: False
+    -
+      class_path: eval.LopPredictionCallback
   logger:
     class_path: WandbLogger
     init_args:
       log_model: true
       project: sim-insertion-scripted
-
 
 data:
   class_path: dataset.EpisodeDataModule
@@ -62,7 +65,7 @@ data:
         transforms:
           - class_path: einops.layers.torch.Rearrange
             init_args:
-              pattern: h w c -> c h w
+              pattern: b h w c -> b c h w
           - class_path: torchvision.transforms.Normalize
             init_args:
               mean: [0, 0, 0]
